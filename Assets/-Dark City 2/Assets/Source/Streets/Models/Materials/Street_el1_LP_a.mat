@@ -21,7 +21,7 @@ Material:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_Name: Street_el1_LP_a
-  m_Shader: {fileID: 4800000, guid: 98e5517100f362c428f2a50ce6ecfa5a, type: 3}
+  m_Shader: {fileID: 4800000, guid: c25392d7564b94340b3286be3d215368, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords: []
