@@ -797,8 +797,19 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1da35206656ff461f9ea567f58b84144, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  websocketToken: qGaQGofbHDuXUb77XuxyVEV0eexjD1KmUmJtP6U3LV80aU1F78b4rwvnQb4wO5y8
-  hyperateID: ZFNBRC0
+  websocketToken: WqUFS31Br1CochGoJQLtAahFBkMmvVfAXKUPJXlF
+  hyperateID: 1H8Q6F6
+  dontDestroyOnLoad: 1
+  autoConnectOnStart: 1
+  connectionStatus: Not started
+  joinedHeartRateChannel: 0
+  receivedHeartRate: 0
+  heartbeatSentCount: 0
+  lastSocketEvent: None
+  lastError: 
+  lastRawMessage: 
+  lastHeartRateText: 0
+  textBox: {fileID: 0}
 --- !u!114 &1000345688
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -825,7 +836,7 @@ MonoBehaviour:
     m_FontStyle: 0
     m_BestFit: 0
     m_MinSize: 0
-    m_MaxSize: 40
+    m_MaxSize: 60
     m_Alignment: 0
     m_AlignByGeometry: 0
     m_RichText: 1
@@ -1727,7 +1738,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!114 &1799121936
 MonoBehaviour:
   m_ObjectHideFlags: 0

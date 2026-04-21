@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -6,72 +6,181 @@ using UnityEngine.UI;
 using Newtonsoft.Json.Linq;
 using NativeWebSocket;
 
+[DisallowMultipleComponent]
 public class hyperateSocket : MonoBehaviour
 {
 
 	// Put your websocket Token ID here
-    public string websocketToken = "qGaQGofbHDuXUb77XuxyVEV0eexjD1KmUmJtP6U3LV80aU1F78b4rwvnQb4wO5y8"; 
-    public string hyperateID = "ZFNBRC0";
-    // ⭐ 新增: 用于存储当前心率的公共静态变量
+    public string websocketToken = "WqUFS31Br1CochGoJQLtAahFBkMmvVfAXKUPJXlF"; 
+    public string hyperateID = "1H8Q6F6";
+    [Header("Lifecycle")]
+    [SerializeField] private bool dontDestroyOnLoad = true;
+    [SerializeField] private bool autoConnectOnStart = true;
+    [Header("Runtime Debug")]
+    [SerializeField] private string connectionStatus = "Not started";
+    [SerializeField] private bool joinedHeartRateChannel;
+    [SerializeField] private bool receivedHeartRate;
+    [SerializeField] private int heartbeatSentCount;
+    [SerializeField] private string lastSocketEvent = "None";
+    [SerializeField] private string lastError = string.Empty;
+    [SerializeField] private string lastRawMessage = string.Empty;
+    [SerializeField] private string lastHeartRateText = "0";
+    [Header("UI Debug (Optional)")]
+    [SerializeField] private Text textBox;
+
     public static int CurrentHeartRate = 0;
-    // Textbox to display your heart rate in
-    Text textBox;
-	// Websocket for connection with Hyperate
     WebSocket websocket;
+    private static hyperateSocket instance;
+
+    public string ConnectionStatus => connectionStatus;
+    public bool JoinedHeartRateChannel => joinedHeartRateChannel;
+    public bool ReceivedHeartRate => receivedHeartRate;
+    public string LastSocketEvent => lastSocketEvent;
+    public string LastError => lastError;
+    public string LastRawMessage => lastRawMessage;
+
+    private void Awake()
+    {
+        if (instance != null && instance != this)
+        {
+            Destroy(gameObject);
+            return;
+        }
+
+        instance = this;
+        if (dontDestroyOnLoad)
+        {
+            if (transform.parent != null)
+            {
+                transform.SetParent(null, true);
+            }
+            DontDestroyOnLoad(gameObject);
+        }
+    }
+
     async void Start()
     {
-        textBox = GetComponent<Text>();
+        if (!autoConnectOnStart)
+        {
+            return;
+        }
 
-        websocket = new WebSocket("wss://app.hyperate.io/socket/websocket?token=" + websocketToken);
+        await ConnectSocket();
+    }
+
+    public async void Connect()
+    {
+        await ConnectSocket();
+    }
+
+    private async System.Threading.Tasks.Task ConnectSocket()
+    {
+        if (websocket != null && websocket.State == WebSocketState.Open)
+        {
+            return;
+        }
+
+        connectionStatus = "Connecting";
+        lastSocketEvent = "Start";
+        lastError = string.Empty;
+        lastRawMessage = string.Empty;
+        joinedHeartRateChannel = false;
+        receivedHeartRate = false;
+        heartbeatSentCount = 0;
+        lastHeartRateText = CurrentHeartRate.ToString();
+
+        websocket = new WebSocket("wss://app.hyperate.io/ws/" + hyperateID + "?token=" + websocketToken);
         Debug.Log("Connect!");
 
         websocket.OnOpen += () =>
         {
+            connectionStatus = "Open";
+            lastSocketEvent = "OnOpen";
             Debug.Log("Connection open!");
             SendWebSocketMessage();
         };
 
         websocket.OnError += (e) =>
         {
+            connectionStatus = "Error";
+            lastSocketEvent = "OnError";
+            lastError = e;
             Debug.Log("Error! " + e);
         };
 
         websocket.OnClose += (e) =>
         {
+            connectionStatus = "Closed";
+            lastSocketEvent = "OnClose";
             Debug.Log("Connection closed!");
         };
 
         websocket.OnMessage += (bytes) =>
         {
-        // getting the message as a string
             var message = System.Text.Encoding.UTF8.GetString(bytes);
-            var msg = JObject.Parse(message);
+            lastRawMessage = message;
+            Debug.Log("[Hyperate] Message: " + message);
 
-            if (msg["event"].ToString() == "hr_update")
+            JObject msg;
+            try
             {
-                // Change textbox text into the newly received Heart Rate (integer like "86" which represents beats per minute)
-                //textBox.text = (string) msg["payload"]["hr"]; //改变
-                string hrString = (string)msg["payload"]["hr"];
-                textBox.text = hrString;
-                // ⭐ 新增: 更新静态变量
+                msg = JObject.Parse(message);
+            }
+            catch (Exception ex)
+            {
+                lastSocketEvent = "ParseError";
+                lastError = ex.Message;
+                Debug.LogError("[Hyperate] Failed to parse message: " + ex.Message);
+                return;
+            }
+
+            string eventName = msg["event"]?.ToString() ?? "unknown";
+            string topicName = msg["topic"]?.ToString() ?? "unknown";
+            lastSocketEvent = eventName;
+
+            if (eventName == "phx_reply" &&
+                topicName == "hr:" + hyperateID &&
+                msg["payload"]?["status"]?.ToString() == "ok")
+            {
+                joinedHeartRateChannel = true;
+                connectionStatus = "Joined channel";
+                Debug.Log("[Hyperate] Joined heart rate channel successfully.");
+                return;
+            }
+
+            if (eventName == "hr_update")
+            {
+                string hrString = (string)msg["payload"]?["hr"];
+                lastHeartRateText = hrString;
+                receivedHeartRate = true;
+                connectionStatus = "Receiving heart rate";
+
+                if (textBox != null)
+                {
+                    textBox.text = hrString;
+                }
+
                 if (int.TryParse(hrString, out int hrValue))
                 {
                     CurrentHeartRate = hrValue;
                 }
+
+                Debug.Log("[Hyperate] Heart rate updated: " + hrString);
             }
         };
 
-        // Send heartbeat message every 25seconds in order to not suspended the connection
-        InvokeRepeating("SendHeartbeat", 1.0f, 25.0f);
+        InvokeRepeating("SendHeartbeat", 1.0f, 15.0f);
 
-        // waiting for messages
         await websocket.Connect();
     }
 
     void Update()
     {
 #if !UNITY_WEBGL || UNITY_EDITOR
-        websocket.DispatchMessageQueue();
+        if (websocket != null)
+        {
+            websocket.DispatchMessageQueue();
+        }
 #endif
     }
 
@@ -79,25 +188,39 @@ public class hyperateSocket : MonoBehaviour
     {
         if (websocket.State == WebSocketState.Open)
         {
-            // Log into the "internal-testing" channel
+            lastSocketEvent = "SendJoin";
             await websocket.SendText("{\"topic\": \"hr:"+hyperateID+"\", \"event\": \"phx_join\", \"payload\": {}, \"ref\": 0}");
+            Debug.Log("[Hyperate] Join request sent for hr:" + hyperateID);
         }
     }
+
     async void SendHeartbeat()
     {
         if (websocket.State == WebSocketState.Open)
         {
-            // Send heartbeat message in order to not be suspended from the connection
-            await websocket.SendText("{\"topic\": \"phoenix\",\"event\": \"heartbeat\",\"payload\": {},\"ref\": 0}");
-
+            heartbeatSentCount++;
+            lastSocketEvent = "SendHeartbeat";
+            long timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            await websocket.SendText("{\"event\": \"ping\", \"payload\": {\"timestamp\": " + timestamp + "}}");
+            Debug.Log("[Hyperate] Heartbeat sent. Count: " + heartbeatSentCount);
         }
     }
 
     private async void OnApplicationQuit()
     {
-        await websocket.Close();
+        if (websocket != null)
+        {
+            await websocket.Close();
+        }
     }
 
+    private async void OnDestroy()
+    {
+        if (websocket != null)
+        {
+            await websocket.Close();
+        }
+    }
 
 }
 

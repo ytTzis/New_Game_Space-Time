@@ -188,6 +188,12 @@ namespace UGG.Combat
         }
 
         /// <summary>
+        /// 获取当前锁定目标
+        /// </summary>
+        /// <returns></returns>
+        public Transform GetCurrentTarget() => currentTarget;
+
+        /// <summary>
         /// 获取当前是否允许玩家攻击输入
         /// </summary>
         /// <returns></returns>
