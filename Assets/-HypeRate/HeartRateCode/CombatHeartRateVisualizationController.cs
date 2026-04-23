@@ -1,53 +1,50 @@
-using System.Collections.Generic;
 using UGG.Combat;
 using UGG.Health;
 using UnityEngine;
 
+[AddComponentMenu("心率可视化/战斗心率可视化控制器")]
 public class CombatHeartRateVisualizationController : MonoBehaviour
 {
-    [Header("Scene References")]
-    [SerializeField] private PlayerCombatSystem playerCombatSystem;
-    [SerializeField] private PlayerHealthSystem playerHealthSystem;
-    [SerializeField] private Transform playerRoot;
-    [SerializeField] private Light mainDirectionalLight;
-    [SerializeField] private GameObject nonCombatUIRoot;
-    [SerializeField] private GameObject[] uiObjectsHiddenInCombat;
-    [SerializeField] private GameObject combatUIRoot;
+    [Header("场景引用")]
+    [SerializeField, InspectorName("玩家战斗系统")] private PlayerCombatSystem playerCombatSystem;
+    [SerializeField, InspectorName("玩家生命系统")] private PlayerHealthSystem playerHealthSystem;
+    [SerializeField, InspectorName("玩家根节点")] private Transform playerRoot;
+    [SerializeField, InspectorName("主方向光")] private Light mainDirectionalLight;
+    [SerializeField, InspectorName("非战斗UI根节点")] private GameObject nonCombatUIRoot;
+    [SerializeField, InspectorName("战斗UI根节点")] private GameObject combatUIRoot;
 
-    [Header("Combat Detection")]
-    [SerializeField] private AICombatSystem[] enemySensors;
-    [SerializeField] private float enemyCombatDistance = 8f;
+    [Header("战斗检测")]
+    [SerializeField, InspectorName("敌人感知器")] private AICombatSystem[] enemySensors;
+    [SerializeField, InspectorName("敌人判定距离")] private float enemyCombatDistance = 8f;
 
-    [Header("Lighting Response")]
-    [SerializeField] private bool affectMainDirectionalLight = true;
-    [SerializeField] private bool affectResponsiveLights = true;
-    [SerializeField] private Light[] responsiveLights;
-    [SerializeField] private float responsiveLightPulseAmount = 0.6f;
+    [Header("灯光响应设置")]
+    [SerializeField, InspectorName("启用主方向光响应")] private bool affectMainDirectionalLight = true;
+    [SerializeField, InspectorName("启用灯组响应")] private bool affectResponsiveLights = true;
+    [SerializeField, InspectorName("响应灯组")] private Light[] responsiveLights;
+    [SerializeField, InspectorName("灯组额外脉动强度")] private float responsiveLightPulseAmount = 0.6f;
 
-    [Header("Health Color Stages")]
-    [SerializeField] private Color highHealthColor = new Color(0.15f, 0.95f, 0.85f);
-    [SerializeField] private Color midHealthColor = new Color(1.0f, 0.65f, 0.2f);
-    [SerializeField] private Color lowHealthColor = new Color(0.95f, 0.2f, 0.65f);
-    [SerializeField, Range(0f, 1f)] private float midHealthThreshold = 0.66f;
-    [SerializeField, Range(0f, 1f)] private float lowHealthThreshold = 0.33f;
+    [Header("生命值颜色阶段")]
+    [SerializeField, InspectorName("高生命颜色")] private Color highHealthColor = new Color(0.15f, 0.95f, 0.85f);
+    [SerializeField, InspectorName("中生命颜色")] private Color midHealthColor = new Color(1.0f, 0.65f, 0.2f);
+    [SerializeField, InspectorName("低生命颜色")] private Color lowHealthColor = new Color(0.95f, 0.2f, 0.65f);
+    [SerializeField, Range(0f, 1f), InspectorName("中生命阈值")] private float midHealthThreshold = 0.66f;
+    [SerializeField, Range(0f, 1f), InspectorName("低生命阈值")] private float lowHealthThreshold = 0.33f;
 
-    [Header("Heart Pulse")]
-    [SerializeField] private float combatBaseIntensity = 1.2f;
-    [SerializeField] private float pulseIntensityAmount = 0.8f;
-    [SerializeField] private float transitionSpeed = 4f;
-    [SerializeField] private int fallbackHeartRate = 72;
-    [SerializeField] private int minimumHeartRate = 45;
-    [SerializeField] private int maximumHeartRate = 180;
+    [Header("心跳脉动")]
+    [SerializeField, InspectorName("战斗基础亮度")] private float combatBaseIntensity = 1.2f;
+    [SerializeField, InspectorName("主光脉动强度")] private float pulseIntensityAmount = 0.8f;
+    [SerializeField, InspectorName("过渡速度")] private float transitionSpeed = 4f;
+    [SerializeField, InspectorName("回退心率")] private int fallbackHeartRate = 72;
+    [SerializeField, InspectorName("最小心率")] private int minimumHeartRate = 45;
+    [SerializeField, InspectorName("最大心率")] private int maximumHeartRate = 180;
 
-    [Header("Debug Heart Rate")]
-    [SerializeField] private bool useDebugHeartRate;
-    [SerializeField] private int debugHeartRate = 72;
+    [Header("调试心率")]
+    [SerializeField, InspectorName("使用调试心率")] private bool useDebugHeartRate;
+    [SerializeField, InspectorName("调试心率值")] private int debugHeartRate = 72;
 
-    [Header("Debug Combat State")]
-    [SerializeField] private bool useDebugCombatState;
-    [SerializeField] private bool debugIsInCombat;
-
-    private static readonly string[] PersistentNonCombatUIChildNames = { "LeftText", "StressVignette" };
+    [Header("调试战斗状态")]
+    [SerializeField, InspectorName("使用调试战斗状态")] private bool useDebugCombatState;
+    [SerializeField, InspectorName("调试为战斗中")] private bool debugIsInCombat;
 
     private Color defaultLightColor;
     private float defaultLightIntensity;
@@ -68,7 +65,6 @@ public class CombatHeartRateVisualizationController : MonoBehaviour
     private void OnValidate()
     {
         ClampHeartRateRange();
-        TryAutoBindCombatHiddenUI();
     }
 
     private void Update()
@@ -117,45 +113,6 @@ public class CombatHeartRateVisualizationController : MonoBehaviour
         {
             enemySensors = FindObjectsByType<AICombatSystem>(FindObjectsInactive.Include, FindObjectsSortMode.None);
         }
-
-        TryAutoBindCombatHiddenUI();
-    }
-
-    private void TryAutoBindCombatHiddenUI()
-    {
-        if (nonCombatUIRoot == null || (uiObjectsHiddenInCombat != null && uiObjectsHiddenInCombat.Length > 0))
-        {
-            return;
-        }
-
-        List<GameObject> autoHiddenObjects = new List<GameObject>();
-        Transform nonCombatRootTransform = nonCombatUIRoot.transform;
-
-        for (int i = 0; i < nonCombatRootTransform.childCount; i++)
-        {
-            Transform child = nonCombatRootTransform.GetChild(i);
-            if (child == null || ShouldPersistOutsideCombat(child.name))
-            {
-                continue;
-            }
-
-            autoHiddenObjects.Add(child.gameObject);
-        }
-
-        uiObjectsHiddenInCombat = autoHiddenObjects.ToArray();
-    }
-
-    private static bool ShouldPersistOutsideCombat(string childName)
-    {
-        foreach (string persistentChildName in PersistentNonCombatUIChildNames)
-        {
-            if (childName == persistentChildName)
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private void CacheDefaultLightState()
@@ -248,24 +205,9 @@ public class CombatHeartRateVisualizationController : MonoBehaviour
 
     private void UpdateUIState(bool isInCombat)
     {
-        bool hasCombatHiddenUI = uiObjectsHiddenInCombat != null && uiObjectsHiddenInCombat.Length > 0;
-
-        if (nonCombatUIRoot != null && !hasCombatHiddenUI)
+        if (nonCombatUIRoot != null)
         {
             nonCombatUIRoot.SetActive(!isInCombat);
-        }
-
-        if (uiObjectsHiddenInCombat != null)
-        {
-            foreach (GameObject uiObject in uiObjectsHiddenInCombat)
-            {
-                if (uiObject == null)
-                {
-                    continue;
-                }
-
-                uiObject.SetActive(!isInCombat);
-            }
         }
 
         if (combatUIRoot != null)
@@ -374,18 +316,16 @@ public class CombatHeartRateVisualizationController : MonoBehaviour
             return highHealthColor;
         }
 
-        // Temporarily disable HealthNormalized-driven color stages until
-        // the project's player health system exposes a normalized HP value.
-        // float healthNormalized = playerHealthSystem.HealthNormalized;
-        // if (healthNormalized <= lowHealthThreshold)
-        // {
-        //     return lowHealthColor;
-        // }
-        //
-        // if (healthNormalized <= midHealthThreshold)
-        // {
-        //     return midHealthColor;
-        // }
+        float healthNormalized = playerHealthSystem.HealthNormalized;
+        if (healthNormalized <= lowHealthThreshold)
+        {
+            return lowHealthColor;
+        }
+
+        if (healthNormalized <= midHealthThreshold)
+        {
+            return midHealthColor;
+        }
 
         return highHealthColor;
     }

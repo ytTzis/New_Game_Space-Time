@@ -7,7 +7,21 @@ namespace UGG.Health
 {
     public class PlayerHealthSystem : CharacterHealthSystemBase
     {
+        [Header("Player HP")]
+        [SerializeField] private float maxHealth = 100f;
+        [SerializeField] private float currentHealth = 100f;
+
         private bool canExecute = false;
+
+        public float MaxHealth => maxHealth;
+        public float CurrentHealth => currentHealth;
+        public float HealthNormalized => maxHealth <= 0f ? 0f : currentHealth / maxHealth;
+
+        protected override void Awake()
+        {
+            base.Awake();
+            currentHealth = Mathf.Clamp(currentHealth, 0f, maxHealth);
+        }
 
         protected override void Update()
         {
@@ -26,9 +40,15 @@ namespace UGG.Health
             }
             else
             {
+                ApplyDamage(damagar);
                 _animator.Play(hitAnimationName, 0, 0f);
                 GameAssets.Instance.PlaySoundEffect(_audioSource, SoundAssetsType.hit);
             }
+        }
+
+        public void RestoreFullHealth()
+        {
+            currentHealth = maxHealth;
         }
 
         #region Parry
@@ -98,6 +118,16 @@ namespace UGG.Health
             {
                 transform.rotation = transform.LockOnTarget(currentAttacker, transform, 50f);
             }
+        }
+
+        private void ApplyDamage(float damage)
+        {
+            if (damage <= 0f)
+            {
+                return;
+            }
+
+            currentHealth = Mathf.Clamp(currentHealth - damage, 0f, maxHealth);
         }
 
         #endregion
