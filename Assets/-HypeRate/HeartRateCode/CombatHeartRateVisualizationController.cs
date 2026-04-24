@@ -1,5 +1,6 @@
 using UGG.Combat;
 using UGG.Health;
+using System.Collections.Generic;
 using UnityEngine;
 
 [AddComponentMenu("心率可视化/战斗心率可视化控制器")]
@@ -21,7 +22,6 @@ public class CombatHeartRateVisualizationController : MonoBehaviour
     [SerializeField, InspectorName("启用主方向光响应")] private bool affectMainDirectionalLight = true;
     [SerializeField, InspectorName("启用灯组响应")] private bool affectResponsiveLights = true;
     [SerializeField, InspectorName("响应灯组")] private Light[] responsiveLights;
-    [SerializeField, InspectorName("灯组额外脉动强度")] private float responsiveLightPulseAmount = 0.6f;
 
     [Header("生命值颜色阶段")]
     [SerializeField, InspectorName("高生命颜色")] private Color highHealthColor = new Color(0.15f, 0.95f, 0.85f);
@@ -104,15 +104,53 @@ public class CombatHeartRateVisualizationController : MonoBehaviour
             }
         }
 
-        if ((responsiveLights == null || responsiveLights.Length == 0) && mainDirectionalLight != null)
+        if (ShouldAutoBindResponsiveLights())
         {
-            responsiveLights = new[] { mainDirectionalLight };
+            responsiveLights = FindAllResponsiveLights();
         }
 
         if (enemySensors == null || enemySensors.Length == 0)
         {
             enemySensors = FindObjectsByType<AICombatSystem>(FindObjectsInactive.Include, FindObjectsSortMode.None);
         }
+    }
+
+    private bool ShouldAutoBindResponsiveLights()
+    {
+        if (responsiveLights == null || responsiveLights.Length == 0)
+        {
+            return true;
+        }
+
+        if (responsiveLights.Length == 1 && responsiveLights[0] == mainDirectionalLight)
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private Light[] FindAllResponsiveLights()
+    {
+        Light[] sceneLights = FindObjectsByType<Light>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        List<Light> collectedLights = new List<Light>();
+
+        foreach (Light sceneLight in sceneLights)
+        {
+            if (sceneLight == null || !sceneLight.enabled)
+            {
+                continue;
+            }
+
+            collectedLights.Add(sceneLight);
+        }
+
+        if (collectedLights.Count == 0 && mainDirectionalLight != null)
+        {
+            collectedLights.Add(mainDirectionalLight);
+        }
+
+        return collectedLights.ToArray();
     }
 
     private void CacheDefaultLightState()
@@ -295,7 +333,7 @@ public class CombatHeartRateVisualizationController : MonoBehaviour
                 continue;
             }
 
-            float targetIntensity = defaultIntensity + pulseValue * responsiveLightPulseAmount;
+            float targetIntensity = defaultIntensity + pulseValue * pulseIntensityAmount;
 
             responsiveLight.color = Color.Lerp(
                 responsiveLight.color,

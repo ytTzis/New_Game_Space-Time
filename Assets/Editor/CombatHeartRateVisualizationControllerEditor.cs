@@ -17,7 +17,6 @@ public class CombatHeartRateVisualizationControllerEditor : Editor
     private SerializedProperty affectMainDirectionalLight;
     private SerializedProperty affectResponsiveLights;
     private SerializedProperty responsiveLights;
-    private SerializedProperty responsiveLightPulseAmount;
 
     private SerializedProperty highHealthColor;
     private SerializedProperty midHealthColor;
@@ -54,7 +53,6 @@ public class CombatHeartRateVisualizationControllerEditor : Editor
         affectMainDirectionalLight = serializedObject.FindProperty("affectMainDirectionalLight");
         affectResponsiveLights = serializedObject.FindProperty("affectResponsiveLights");
         responsiveLights = serializedObject.FindProperty("responsiveLights");
-        responsiveLightPulseAmount = serializedObject.FindProperty("responsiveLightPulseAmount");
 
         highHealthColor = serializedObject.FindProperty("highHealthColor");
         midHealthColor = serializedObject.FindProperty("midHealthColor");
@@ -81,7 +79,11 @@ public class CombatHeartRateVisualizationControllerEditor : Editor
     {
         serializedObject.Update();
 
-        DrawScriptField();
+        using (new EditorGUI.DisabledScope(true))
+        {
+            EditorGUILayout.ObjectField("脚本", scriptAsset, typeof(MonoScript), false);
+        }
+
         EditorGUILayout.Space(4f);
 
         DrawSection("场景引用");
@@ -102,7 +104,6 @@ public class CombatHeartRateVisualizationControllerEditor : Editor
         DrawProperty(affectMainDirectionalLight, "启用主方向光响应");
         DrawProperty(affectResponsiveLights, "启用灯组响应");
         DrawProperty(responsiveLights, "响应灯组", true);
-        DrawProperty(responsiveLightPulseAmount, "灯组额外脉动强度");
 
         EditorGUILayout.Space(6f);
         DrawSection("生命值颜色阶段");
@@ -115,7 +116,7 @@ public class CombatHeartRateVisualizationControllerEditor : Editor
         EditorGUILayout.Space(6f);
         DrawSection("心跳脉动");
         DrawProperty(combatBaseIntensity, "战斗基础亮度");
-        DrawProperty(pulseIntensityAmount, "主光脉动强度");
+        DrawProperty(pulseIntensityAmount, "统一脉动强度");
         DrawProperty(transitionSpeed, "过渡速度");
         DrawProperty(fallbackHeartRate, "回退心率");
         DrawProperty(minimumHeartRate, "最小心率");
@@ -132,14 +133,6 @@ public class CombatHeartRateVisualizationControllerEditor : Editor
         DrawProperty(debugIsInCombat, "调试为战斗中");
 
         serializedObject.ApplyModifiedProperties();
-    }
-
-    private void DrawScriptField()
-    {
-        using (new EditorGUI.DisabledScope(true))
-        {
-            EditorGUILayout.ObjectField("脚本", scriptAsset, typeof(MonoScript), false);
-        }
     }
 
     private static void DrawSection(string title)
