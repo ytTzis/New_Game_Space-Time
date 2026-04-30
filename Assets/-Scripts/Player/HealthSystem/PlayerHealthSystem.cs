@@ -16,6 +16,7 @@ namespace UGG.Health
         [Header("Player HP")]
         [SerializeField] private float maxHealth = 100f;
         [SerializeField] private float currentHealth = 100f;
+        [SerializeField, Header("受击锁定攻击者结束时间(0-1)")] [Range(0f, 1f)] private float hitLockReleaseNormalizedTime = 0.35f;
 
         private bool canExecute = false;
 
@@ -139,7 +140,11 @@ namespace UGG.Health
         private void OnHitLockTarget()
         {
             //检测当前动画是否处于受伤状态
-            if (_animator.CheckAnimationTag("Hit") || _animator.CheckAnimationTag("ParryHit"))
+            bool isHitLocked = _animator.CheckAnimationTag("Hit") &&
+                               !_animator.CheckCurrentTagAnimationTimeIsExceed("Hit", hitLockReleaseNormalizedTime);
+            bool isParryHitLocked = _animator.CheckAnimationTag("ParryHit");
+
+            if (isHitLocked || isParryHitLocked)
             {
                 transform.rotation = transform.LockOnTarget(currentAttacker, transform, 50f);
             }

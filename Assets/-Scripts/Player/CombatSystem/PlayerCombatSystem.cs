@@ -8,6 +8,11 @@ namespace UGG.Combat
 {
     public class PlayerCombatSystem : CharacterCombatSystemBase
     {
+        private static readonly string[] FinalComboAttackStateNames =
+        {
+            "GhostSamurai_APose_Attack02_6_Inplace"
+        };
+
         private PlayerHealthSystem healthSystem;
 
         //引用
@@ -16,6 +21,12 @@ namespace UGG.Combat
         //Speed
         [SerializeField, Header("攻击移动速度倍率"), Range(0.1f, 10f)]
         private float attackMoveMult;
+        [SerializeField, Header("攻击提前恢复输入时间(0-1)")] [Range(0f, 1f)]
+        private float attackRecoverNormalizedTime = 0.6f;
+        [SerializeField, Header("攻击锁敌结束时间(0-1)")] [Range(0f, 1f)]
+        private float attackLockReleaseNormalizedTime = 0.55f;
+        [SerializeField, Header("最后一刀提前恢复移动时间(0-1)")] [Range(0f, 1f)]
+        private float finalAttackMoveRecoverNormalizedTime = 0.85f;
         
         //检测
         [SerializeField, Header("检测敌人")] private Transform detectionCenter;
@@ -53,7 +64,11 @@ namespace UGG.Combat
             //当玩家处于Motion状态(idle)也允许玩家输入攻击信号
             if (!allowAttackInput)
             {
-                if (_animator.CheckCurrentTagAnimationTimeIsExceed("Motion", 0.01f) && !_animator.IsInTransition(0))
+                bool canInputFromMotion = _animator.CheckCurrentTagAnimationTimeIsExceed("Motion", 0.01f) &&
+                                          !_animator.IsInTransition(0);
+                bool canRecoverFromAttack = CanRecoverFromAttack();
+
+                if (canInputFromMotion || canRecoverFromAttack)
                 {
                     SetAllowAttackInput(true);
                 }
@@ -146,11 +161,44 @@ namespace UGG.Combat
         {
             if (_animator.CheckAnimationTag("Attack") || _animator.CheckAnimationTag("GSAttack"))
             {
-                if (_animator.GetCurrentAnimatorStateInfo(0).normalizedTime < 0.75f)
+                if (_animator.GetCurrentAnimatorStateInfo(0).normalizedTime < attackLockReleaseNormalizedTime)
                 {
                     return true;
                 }
             }
+            return false;
+        }
+
+        public bool CanRecoverFromAttack()
+        {
+            bool canRecoverFromNormalAttack = _animator.CheckAnimationTag("Attack") &&
+                                              _animator.CheckCurrentTagAnimationTimeIsExceed("Attack", attackRecoverNormalizedTime);
+            bool canRecoverFromGreatSwordAttack = _animator.CheckAnimationTag("GSAttack") &&
+                                                  _animator.GetCurrentAnimatorStateInfo(0).normalizedTime > attackRecoverNormalizedTime;
+
+            return canRecoverFromNormalAttack || canRecoverFromGreatSwordAttack;
+        }
+
+        public bool CanRecoverMovementFromFinalAttack()
+        {
+            if (!_animator.CheckAnimationTag("Attack"))
+            {
+                return false;
+            }
+
+            if (_animator.GetCurrentAnimatorStateInfo(0).normalizedTime <= finalAttackMoveRecoverNormalizedTime)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < FinalComboAttackStateNames.Length; i++)
+            {
+                if (_animator.CheckAnimationName(FinalComboAttackStateNames[i]))
+                {
+                    return true;
+                }
+            }
+
             return false;
         }
 

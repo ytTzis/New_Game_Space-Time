@@ -8,6 +8,7 @@ namespace UGG.Move
         //引用
         private Transform characterCamera;
         private TP_CameraController _tpCameraController;
+        private UGG.Combat.PlayerCombatSystem _playerCombatSystem;
 
         [SerializeField, Header("相机站立锁定点")] private Transform standCameraLook;
         [SerializeField, Header("相机下蹲锁定点")] private Transform crouchCameraLook;
@@ -27,6 +28,7 @@ namespace UGG.Move
         [SerializeField, Header("下蹲速度")] private float crouchMoveSpeed;
 
         [SerializeField, Header("动画移动速度倍率")] private float animationMoveSpeedMult;
+        [SerializeField, Header("受击提前恢复输入时间(0-1)")] [Range(0f, 1f)] private float hitRecoverNormalizedTime = 0.45f;
 
 
         [SerializeField, Header("角色胶囊控制(下蹲)")] private Vector3 crouchCenter;
@@ -51,6 +53,7 @@ namespace UGG.Move
 
             characterCamera = Camera.main.transform.root.transform;
             _tpCameraController = characterCamera.GetComponent<TP_CameraController>();
+            _playerCombatSystem = GetComponentInChildren<UGG.Combat.PlayerCombatSystem>();
         }
 
         protected override void Start()
@@ -82,7 +85,15 @@ namespace UGG.Move
 
         private bool CanMoveContro()
         {
-            return isOnGround && characterAnimator.CheckAnimationTag("Motion") || characterAnimator.CheckAnimationTag("CrouchMotion");
+            bool canMoveOnGround = isOnGround && characterAnimator.CheckAnimationTag("Motion");
+            bool canMoveOnCrouch = characterAnimator.CheckAnimationTag("CrouchMotion");
+            bool canRecoverFromHit = isOnGround &&
+                                     characterAnimator.CheckCurrentTagAnimationTimeIsExceed("Hit", hitRecoverNormalizedTime);
+            bool canRecoverFromFinalAttack = isOnGround &&
+                                             _playerCombatSystem != null &&
+                                             _playerCombatSystem.CanRecoverMovementFromFinalAttack();
+
+            return canMoveOnGround || canMoveOnCrouch || canRecoverFromHit || canRecoverFromFinalAttack;
         }
 
         private bool CanCrouch()
