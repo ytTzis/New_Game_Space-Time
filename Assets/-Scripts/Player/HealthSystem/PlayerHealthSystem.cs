@@ -19,6 +19,7 @@ namespace UGG.Health
         [SerializeField, Header("受击锁定攻击者结束时间(0-1)")] [Range(0f, 1f)] private float hitLockReleaseNormalizedTime = 0.35f;
 
         private bool canExecute = false;
+        private UGG.Move.PlayerMovementController playerMovementController;
 
         public float MaxHealth => maxHealth;
         public float CurrentHealth => currentHealth;
@@ -27,6 +28,7 @@ namespace UGG.Health
         protected override void Awake()
         {
             base.Awake();
+            playerMovementController = GetComponent<UGG.Move.PlayerMovementController>();
             currentHealth = Mathf.Clamp(currentHealth, 0f, maxHealth);
 
             if (string.IsNullOrEmpty(deathAnimationName))
@@ -47,6 +49,11 @@ namespace UGG.Health
         public override void TakeDamager(float damagar, string hitAnimationName, Transform attacker)
         {
             if (IsDead())
+            {
+                return;
+            }
+
+            if (playerMovementController != null && playerMovementController.IsDodgeInvulnerable())
             {
                 return;
             }

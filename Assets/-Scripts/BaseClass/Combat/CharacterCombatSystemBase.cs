@@ -50,6 +50,8 @@ namespace UGG.Combat
                 return;
             }
 
+            PlayerWeaponEffect();
+
             Collider[] attackDetectionTargets = new Collider[4];
 
             int counts = Physics.OverlapSphereNonAlloc(attackDetectionCenter.position, attackDetectionRang, attackDetectionTargets, enemyLayer);
@@ -64,7 +66,6 @@ namespace UGG.Combat
                     }
                 }
             }
-            PlayerWeaponEffect();
         }
 
         private float GetCurrentAttackDamage()
@@ -79,7 +80,7 @@ namespace UGG.Combat
 
         private void PlayerWeaponEffect()
         {
-            if (_animator.CheckAnimationTag("Attack"))
+            if (_animator.CheckAnimationTag("Attack") || _animator.CheckAnimationTag("LAttack"))
             {
                 GameAssets.Instance.PlaySoundEffect(_audioSource, SoundAssetsType.swordWave);
             }

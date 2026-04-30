@@ -16,6 +16,8 @@ namespace UGG.Move
         //Ref Value
         private float targetRotation;
         private float rotationVelocity;
+        private Vector3 currentDodgeDirection = Vector3.back;
+        private float nextDodgeTime;
 
         //LerpTime
         [SerializeField, Header("旋转速度")] private float rotationLerpTime;
@@ -29,6 +31,12 @@ namespace UGG.Move
 
         [SerializeField, Header("动画移动速度倍率")] private float animationMoveSpeedMult;
         [SerializeField, Header("受击提前恢复输入时间(0-1)")] [Range(0f, 1f)] private float hitRecoverNormalizedTime = 0.45f;
+        [SerializeField, Header("短闪移动速度"), Range(1f, 20f)] private float dodgeMoveSpeed = 7.5f;
+        [SerializeField, Header("短闪冷却时间"), Range(0f, 1.5f)] private float dodgeCooldown = 0.35f;
+        [SerializeField, Header("短闪动画速度"), Range(0.5f, 3f)] private float dodgeAnimationSpeed = 1.25f;
+        [SerializeField, Header("短闪位移结束时间(0-1)"), Range(0.1f, 1f)] private float dodgeMoveEndNormalizedTime = 0.72f;
+        [SerializeField, Header("短闪无敌开始时间(0-1)"), Range(0f, 1f)] private float dodgeInvincibleStartNormalizedTime = 0.08f;
+        [SerializeField, Header("短闪无敌结束时间(0-1)"), Range(0f, 1f)] private float dodgeInvincibleEndNormalizedTime = 0.55f;
 
 
         [SerializeField, Header("角色胶囊控制(下蹲)")] private Vector3 crouchCenter;
@@ -186,17 +194,125 @@ namespace UGG.Move
         private void UpdateRollAnimation()
         {
             //如果玩家按下翻滚键
-            if (_inputSystem.playerRoll)
+            if (_inputSystem.playerRoll && CanStartDodge())
             {
-                //设置翻滚动画
-                characterAnimator.SetTrigger(rollID);
+                CacheDodgeDirection();
+                //直接进入普通武器短闪状态，避免依赖SecondaryWeapon分支
+                characterAnimator.Play("Roll_B", 0, 0f);
+                characterAnimator.speed = dodgeAnimationSpeed;
+                nextDodgeTime = Time.time + dodgeCooldown;
             }
 
             //检测是否在翻滚状态
             if (characterAnimator.CheckAnimationTag("Roll"))
             {
-                CharacterMoveInterface(transform.forward, characterAnimator.GetFloat(animationMoveID) * animationMoveSpeedMult, true);
+                if (characterAnimator.GetCurrentAnimatorStateInfo(0).normalizedTime < dodgeMoveEndNormalizedTime)
+                {
+                    CharacterMoveInterface(currentDodgeDirection, dodgeMoveSpeed, true);
+                }
             }
+            else if (characterAnimator.speed != 1f)
+            {
+                characterAnimator.speed = 1f;
+            }
+        }
+
+        private bool CanStartDodge()
+        {
+            if (Time.time < nextDodgeTime) return false;
+            if (characterAnimator.CheckAnimationTag("Roll")) return false;
+            if (!CanDodgeFromCurrentState()) return false;
+            if (IsInDodgeLockedState()) return false;
+
+            return true;
+        }
+
+        private bool CanDodgeFromCurrentState()
+        {
+            bool canDodgeFromGroundMotion = isOnGround && characterAnimator.CheckAnimationTag("Motion");
+            bool canDodgeFromCrouch = characterAnimator.CheckAnimationTag("CrouchMotion");
+            bool canDodgeFromRecoveredHit = isOnGround &&
+                                           characterAnimator.CheckCurrentTagAnimationTimeIsExceed("Hit", hitRecoverNormalizedTime);
+            bool canDodgeFromFinalAttack = isOnGround &&
+                                           _playerCombatSystem != null &&
+                                           _playerCombatSystem.CanRecoverMovementFromFinalAttack();
+
+            return canDodgeFromGroundMotion || canDodgeFromCrouch || canDodgeFromRecoveredHit || canDodgeFromFinalAttack;
+        }
+
+        private bool IsInDodgeLockedState()
+        {
+            bool isEarlyHit = characterAnimator.CheckAnimationTag("Hit") &&
+                              !characterAnimator.CheckCurrentTagAnimationTimeIsExceed("Hit", hitRecoverNormalizedTime);
+            bool isTransitioningToHit = characterAnimator.IsInTransition(0) &&
+                                        characterAnimator.GetNextAnimatorStateInfo(0).IsTag("Hit") &&
+                                        !characterAnimator.CheckCurrentTagAnimationTimeIsExceed("Hit", hitRecoverNormalizedTime);
+
+            if (isEarlyHit) return true;
+            if (isTransitioningToHit) return true;
+            if (characterAnimator.CheckAnimationTag("ParryHit")) return true;
+            if (IsDownHitState(characterAnimator.GetCurrentAnimatorStateInfo(0))) return true;
+            if (characterAnimator.IsInTransition(0) && IsDownHitState(characterAnimator.GetNextAnimatorStateInfo(0))) return true;
+            if (characterAnimator.CheckAnimationTag("Death")) return true;
+
+            return false;
+        }
+
+        private static bool IsDownHitState(AnimatorStateInfo stateInfo)
+        {
+            return stateInfo.IsName("Hit_D_Up") ||
+                   stateInfo.IsName("Hit_D_Left") ||
+                   stateInfo.IsName("Hit_D_Right");
+        }
+
+        public bool IsDodgeInvulnerable()
+        {
+            if (!characterAnimator.CheckAnimationTag("Roll"))
+            {
+                return false;
+            }
+
+            float normalizedTime = characterAnimator.GetCurrentAnimatorStateInfo(0).normalizedTime;
+            return normalizedTime >= dodgeInvincibleStartNormalizedTime &&
+                   normalizedTime <= dodgeInvincibleEndNormalizedTime;
+        }
+
+        private void CacheDodgeDirection()
+        {
+            Vector2 input = _inputSystem.playerMovement;
+            Vector3 cameraForward = characterCamera.forward;
+            Vector3 cameraRight = characterCamera.right;
+            cameraForward.y = 0f;
+            cameraRight.y = 0f;
+            cameraForward.Normalize();
+            cameraRight.Normalize();
+
+            if (input == Vector2.zero)
+            {
+                characterAnimator.SetFloat(horizontalID, 0f);
+                characterAnimator.SetFloat(verticalID, -1f);
+                currentDodgeDirection = -transform.forward;
+                return;
+            }
+
+            Vector2 snappedInput;
+
+            if (Mathf.Abs(input.x) > Mathf.Abs(input.y))
+            {
+                snappedInput = new Vector2(Mathf.Sign(input.x), 0f);
+            }
+            else
+            {
+                snappedInput = new Vector2(0f, Mathf.Sign(input.y));
+            }
+
+            characterAnimator.SetFloat(horizontalID, snappedInput.x);
+            characterAnimator.SetFloat(verticalID, snappedInput.y);
+
+            currentDodgeDirection = cameraRight * snappedInput.x + cameraForward * snappedInput.y;
+            currentDodgeDirection = currentDodgeDirection.sqrMagnitude > 0f
+                ? currentDodgeDirection.normalized
+                : -transform.forward;
         }
         
         private void CharacterCrouchControl()

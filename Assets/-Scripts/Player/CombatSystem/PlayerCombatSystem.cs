@@ -51,6 +51,7 @@ namespace UGG.Combat
             DetectionTarget();
             ActionMotion();
             UpdateCurrentTarget();
+            RecoverFromExecuteIfNeeded();
             PlayerParryInput();
         }
 
@@ -93,20 +94,8 @@ namespace UGG.Combat
                 }
             }
 
-            //如果玩家一直按住鼠标右键
-            if (_characterInputSystem.playerRAtk)
-            {
-                //并且按下左键
-                if (_characterInputSystem.playerLAtk)
-                {
-                    //触发大剑攻击动画
-                    _animator.SetTrigger(lAtkID);
-
-                    SetAllowAttackInput(false);
-                }
-            }
-
-            _animator.SetBool(secondaryWeaponID, _characterInputSystem.playerRAtk);
+            //关闭大剑分支，始终保持普通武器战斗状态
+            _animator.SetBool(secondaryWeaponID, false);
         }
 
         private void PlayerParryInput()
@@ -200,6 +189,27 @@ namespace UGG.Combat
             }
 
             return false;
+        }
+
+        private void RecoverFromExecuteIfNeeded()
+        {
+            if (!_animator.CheckAnimationName("Execute_0"))
+            {
+                return;
+            }
+
+            if (_animator.IsInTransition(0))
+            {
+                return;
+            }
+
+            if (_animator.GetCurrentAnimatorStateInfo(0).normalizedTime < 0.98f)
+            {
+                return;
+            }
+
+            _animator.Play("BaseMotion", 0, 0f);
+            SetAllowAttackInput(true);
         }
 
         private void DetectionTarget()
