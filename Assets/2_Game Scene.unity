@@ -77129,12 +77129,24 @@ PrefabInstance:
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 4277240882114777235, guid: 0504336c24266b141a524cbebec8e2f2, type: 3}
+      propertyPath: dodgeMoveSpeed
+      value: 2
+      objectReference: {fileID: 0}
+    - target: {fileID: 4277240882114777235, guid: 0504336c24266b141a524cbebec8e2f2, type: 3}
       propertyPath: whatIsObs.m_Bits
       value: 384
       objectReference: {fileID: 0}
     - target: {fileID: 4277240882114777235, guid: 0504336c24266b141a524cbebec8e2f2, type: 3}
+      propertyPath: dodgeAnimationSpeed
+      value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 4277240882114777235, guid: 0504336c24266b141a524cbebec8e2f2, type: 3}
       propertyPath: whatIsGround.m_Bits
       value: 257
+      objectReference: {fileID: 0}
+    - target: {fileID: 4277240882114777235, guid: 0504336c24266b141a524cbebec8e2f2, type: 3}
+      propertyPath: dodgeMoveEndNormalizedTime
+      value: 0.65
       objectReference: {fileID: 0}
     - target: {fileID: 4277240882559218601, guid: 0504336c24266b141a524cbebec8e2f2, type: 3}
       propertyPath: m_Layer
