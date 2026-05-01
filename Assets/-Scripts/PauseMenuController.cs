@@ -4,18 +4,30 @@ using StarterAssets;
 using UnityEngine.SceneManagement;
 using System.Collections;
 using UGG.Combat;
+using UnityEngine.UI;
+using TMPro;
 
 public class PauseMenuController : MonoBehaviour
 {
     private const string TitleSceneName = "FirstScene";
+    private const string MusicSliderObjectName = "MusicUI";
+    private const string SensitivitySliderObjectName = "SensitivityUI";
+    private const string NonCombatUiObjectName = "Heartrate";
+    private const float SliderCenterValue = 0.5f;
 
     [SerializeField] private GameObject menuPanel;
     [SerializeField] private PlayerHealthSystem playerHealth;
+    [SerializeField] private Slider musicSlider;
+    [SerializeField] private Slider sensitivitySlider;
+    [SerializeField] private TMP_Text musicValueText;
+    [SerializeField] private TMP_Text sensitivityValueText;
+    [SerializeField] private GameObject nonCombatUIRoot;
 
     private bool menuOpen;
     private bool deathMenuShown;
     private CanvasGroup menuCanvasGroup;
     private bool hideWithCanvasGroup;
+    private CanvasGroup nonCombatUICanvasGroup;
     private TP_CameraController tpCameraController;
     private UnityTemplateProjects.SimpleCameraController simpleCameraController;
     private StarterAssetsInputs starterAssetsInputs;
@@ -28,6 +40,8 @@ public class PauseMenuController : MonoBehaviour
     private bool combatEnabledBeforeMenu;
     private bool inputEnabledBeforeMenu;
     private Coroutine restoreGameplayCoroutine;
+    private float baseMusicVolume;
+    private float baseMouseSensitivity;
 
     private void Awake()
     {
@@ -38,6 +52,9 @@ public class PauseMenuController : MonoBehaviour
         starterAssetsInputs = FindObjectOfType<StarterAssetsInputs>(true);
         playerCombatSystem = FindObjectOfType<PlayerCombatSystem>(true);
         characterInputSystem = FindObjectOfType<CharacterInputSystem>(true);
+        baseMusicVolume = AudioListener.volume;
+        baseMouseSensitivity = tpCameraController != null ? tpCameraController.mouseInputSpeed : 0.1f;
+        ResolveNonCombatUIRoot();
 
         if (menuPanel != null)
         {
@@ -55,6 +72,8 @@ public class PauseMenuController : MonoBehaviour
 
             SetMenuVisible(false);
         }
+
+        BindSettingsSliders();
     }
 
     private void Update()
@@ -62,8 +81,6 @@ public class PauseMenuController : MonoBehaviour
         if (!deathMenuShown && playerHealth != null && playerHealth.IsDead())
         {
             deathMenuShown = true;
-            OpenMenu();
-            return;
         }
 
         if (menuOpen)
@@ -127,6 +144,8 @@ public class PauseMenuController : MonoBehaviour
 
     private void ReleaseCursorControl()
     {
+        SetNonCombatUIInteractionEnabled(false);
+
         if (playerCombatSystem != null)
         {
             combatEnabledBeforeMenu = playerCombatSystem.enabled;
@@ -165,6 +184,8 @@ public class PauseMenuController : MonoBehaviour
 
     private void RestoreCursorControl()
     {
+        SetNonCombatUIInteractionEnabled(true);
+
         if (playerCombatSystem != null)
         {
             playerCombatSystem.enabled = combatEnabledBeforeMenu;
@@ -202,6 +223,111 @@ public class PauseMenuController : MonoBehaviour
         restoreGameplayCoroutine = null;
     }
 
+    public void OnMusicSliderChanged(float sliderValue)
+    {
+        float targetVolume = GetValueAroundCenter(sliderValue, baseMusicVolume, 0f, 1f);
+        AudioListener.volume = targetVolume;
+        UpdateValueText(musicValueText, sliderValue);
+    }
+
+    public void OnSensitivitySliderChanged(float sliderValue)
+    {
+        if (tpCameraController == null)
+        {
+            return;
+        }
+
+        float targetSensitivity = GetValueAroundCenter(sliderValue, baseMouseSensitivity, 0.01f, 1f);
+        tpCameraController.mouseInputSpeed = targetSensitivity;
+        UpdateValueText(sensitivityValueText, sliderValue);
+    }
+
+    private void BindSettingsSliders()
+    {
+        if (musicSlider == null)
+        {
+            musicSlider = FindSliderByName(MusicSliderObjectName);
+        }
+
+        if (sensitivitySlider == null)
+        {
+            sensitivitySlider = FindSliderByName(SensitivitySliderObjectName);
+        }
+
+        ConfigureSlider(musicSlider, OnMusicSliderChanged);
+        ConfigureSlider(sensitivitySlider, OnSensitivitySliderChanged);
+
+        OnMusicSliderChanged(SliderCenterValue);
+        OnSensitivitySliderChanged(SliderCenterValue);
+    }
+
+    private void ConfigureSlider(Slider slider, UnityEngine.Events.UnityAction<float> onValueChanged)
+    {
+        if (slider == null)
+        {
+            return;
+        }
+
+        slider.minValue = 0f;
+        slider.maxValue = 1f;
+        slider.wholeNumbers = false;
+        slider.onValueChanged.RemoveListener(onValueChanged);
+        slider.SetValueWithoutNotify(SliderCenterValue);
+        slider.onValueChanged.AddListener(onValueChanged);
+    }
+
+    private Slider FindSliderByName(string objectName)
+    {
+        Transform searchRoot = menuPanel != null ? menuPanel.transform : transform;
+        Transform target = FindChildRecursive(searchRoot, objectName);
+        return target != null ? target.GetComponentInChildren<Slider>(true) : null;
+    }
+
+    private Transform FindChildRecursive(Transform parent, string childName)
+    {
+        if (parent.name == childName)
+        {
+            return parent;
+        }
+
+        for (int i = 0; i < parent.childCount; i++)
+        {
+            Transform result = FindChildRecursive(parent.GetChild(i), childName);
+
+            if (result != null)
+            {
+                return result;
+            }
+        }
+
+        return null;
+    }
+
+    private float GetValueAroundCenter(float sliderValue, float baseValue, float minValue, float maxValue)
+    {
+        float clampedSliderValue = Mathf.Clamp01(sliderValue);
+
+        if (clampedSliderValue < SliderCenterValue)
+        {
+            float t = clampedSliderValue / SliderCenterValue;
+            return Mathf.Lerp(minValue, baseValue, t);
+        }
+
+        float normalizedUpper = (clampedSliderValue - SliderCenterValue) / SliderCenterValue;
+        return Mathf.Lerp(baseValue, maxValue, normalizedUpper);
+    }
+
+    private void UpdateValueText(TMP_Text targetText, float sliderValue)
+    {
+        if (targetText == null)
+        {
+            return;
+        }
+
+        float displayValue = Mathf.Clamp01(sliderValue) * 10f;
+        targetText.text = displayValue.ToString("0.0");
+    }
+
     private void SetMenuVisible(bool visible)
     {
         if (menuPanel == null)
@@ -218,5 +344,41 @@ public class PauseMenuController : MonoBehaviour
         }
 
         menuPanel.SetActive(visible);
+    }
+
+    private void ResolveNonCombatUIRoot()
+    {
+        if (nonCombatUIRoot == null)
+        {
+            GameObject foundObject = GameObject.Find(NonCombatUiObjectName);
+
+            if (foundObject != null)
+            {
+                nonCombatUIRoot = foundObject;
+            }
+        }
+
+        if (nonCombatUIRoot == null)
+        {
+            return;
+        }
+
+        nonCombatUICanvasGroup = nonCombatUIRoot.GetComponent<CanvasGroup>();
+
+        if (nonCombatUICanvasGroup == null)
+        {
+            nonCombatUICanvasGroup = nonCombatUIRoot.AddComponent<CanvasGroup>();
+        }
+    }
+
+    private void SetNonCombatUIInteractionEnabled(bool enabled)
+    {
+        if (nonCombatUICanvasGroup == null)
+        {
+            return;
+        }
+
+        nonCombatUICanvasGroup.interactable = enabled;
+        nonCombatUICanvasGroup.blocksRaycasts = enabled;
     }
 }
