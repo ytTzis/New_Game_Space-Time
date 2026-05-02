@@ -4,26 +4,26 @@ using UnityEngine.UI;
 
 public class SceneIntroCameraTransition : MonoBehaviour
 {
-    [SerializeField, InspectorName("开场自动播放")] private bool playOnStart = true;
-    [SerializeField, InspectorName("镜头目标，可不填")] private Transform target;
-    [SerializeField, InspectorName("要移动的相机，可不填")] private Transform cameraTransform;
-    [SerializeField, InspectorName("目标观察高度")] private float lookHeight = 1.4f;
+    [SerializeField, InspectorName("Play On Start")] private bool playOnStart = true;
+    [SerializeField, InspectorName("Target")] private Transform target;
+    [SerializeField, InspectorName("Camera Transform")] private Transform cameraTransform;
+    [SerializeField, InspectorName("Look Height")] private float lookHeight = 1.4f;
 
-    [SerializeField, Header("镜头移动"), InspectorName("开始偏移")] private Vector3 startOffset = new Vector3(0f, 4f, -9f);
-    [SerializeField, InspectorName("结束偏移")] private Vector3 endOffset = new Vector3(0f, 2.2f, -4.5f);
-    [SerializeField, InspectorName("偏移跟随主角方向")] private bool useTargetRelativeOffset = true;
-    [SerializeField, InspectorName("反转主角方向偏移")] private bool invertTargetRelativeOffset;
-    [SerializeField, InspectorName("环绕角度")] private float orbitAngle = 35f;
-    [SerializeField, InspectorName("转场时长")] private float duration = 2.5f;
-    [SerializeField, InspectorName("转场曲线")] private AnimationCurve transitionCurve = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f);
+    [SerializeField, Header("Camera Movement"), InspectorName("Start Offset")] private Vector3 startOffset = new Vector3(0f, 4f, -9f);
+    [SerializeField, InspectorName("End Offset")] private Vector3 endOffset = new Vector3(0f, 2.2f, -4.5f);
+    [SerializeField, InspectorName("Use Target Relative Offset")] private bool useTargetRelativeOffset = true;
+    [SerializeField, InspectorName("Invert Target Relative Offset")] private bool invertTargetRelativeOffset;
+    [SerializeField, InspectorName("Orbit Angle")] private float orbitAngle = 35f;
+    [SerializeField, InspectorName("Duration")] private float duration = 2.5f;
+    [SerializeField, InspectorName("Transition Curve")] private AnimationCurve transitionCurve = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f);
 
-    [SerializeField, Header("控制开关"), InspectorName("转场时禁用玩家输入")] private bool disablePlayerInput = true;
-    [SerializeField, InspectorName("转场时禁用相机控制")] private bool disableCameraControllers = true;
-    [SerializeField, InspectorName("结束后恢复原相机位置")] private bool restoreCameraWhenFinished = true;
-    [SerializeField, Header("结束衔接"), InspectorName("结束时黑屏衔接")] private bool fadeWhenFinished = true;
-    [SerializeField, InspectorName("黑屏淡入时长")] private float fadeOutDuration = 0.35f;
-    [SerializeField, InspectorName("黑屏停留时长")] private float fadeHoldDuration = 0.08f;
-    [SerializeField, InspectorName("黑屏淡出时长")] private float fadeInDuration = 0.45f;
+    [SerializeField, Header("Control"), InspectorName("Disable Player Input")] private bool disablePlayerInput = true;
+    [SerializeField, InspectorName("Disable Camera Controllers")] private bool disableCameraControllers = true;
+    [SerializeField, InspectorName("Restore Camera When Finished")] private bool restoreCameraWhenFinished = true;
+    [SerializeField, Header("Finish"), InspectorName("Fade When Finished")] private bool fadeWhenFinished = true;
+    [SerializeField, InspectorName("Fade Out Duration")] private float fadeOutDuration = 0.35f;
+    [SerializeField, InspectorName("Fade Hold Duration")] private float fadeHoldDuration = 0.08f;
+    [SerializeField, InspectorName("Fade In Duration")] private float fadeInDuration = 0.45f;
 
     private CharacterInputSystem characterInputSystem;
     private TP_CameraController tpCameraController;
@@ -35,6 +35,7 @@ public class SceneIntroCameraTransition : MonoBehaviour
     private bool originalTpCameraEnabled;
     private bool originalSimpleCameraEnabled;
     private Coroutine transitionCoroutine;
+    private Coroutine delayedPlayCoroutine;
 
     private void Awake()
     {
@@ -45,18 +46,24 @@ public class SceneIntroCameraTransition : MonoBehaviour
     {
         if (playOnStart)
         {
-            PlayIntro();
+            delayedPlayCoroutine = StartCoroutine(PlayIntroWhenReady());
         }
     }
 
     public void PlayIntro()
     {
-        ResolveReferences();
+        ResolveReferences(forceRefresh: true);
 
         if (target == null || cameraTransform == null)
         {
-            Debug.LogWarning("[开场镜头转场] 缺少目标或相机，无法播放。", this);
+            Debug.LogWarning("[SceneIntroCameraTransition] Missing target or camera transform, intro cannot play.", this);
             return;
+        }
+
+        if (delayedPlayCoroutine != null)
+        {
+            StopCoroutine(delayedPlayCoroutine);
+            delayedPlayCoroutine = null;
         }
 
         if (transitionCoroutine != null)
@@ -65,6 +72,32 @@ public class SceneIntroCameraTransition : MonoBehaviour
         }
 
         transitionCoroutine = StartCoroutine(IntroRoutine());
+    }
+
+    private IEnumerator PlayIntroWhenReady()
+    {
+        // Give the scene one frame to finish object initialization after loading.
+        yield return null;
+        yield return new WaitForEndOfFrame();
+
+        const float maxWaitTime = 1.5f;
+        float timer = 0f;
+
+        while (timer < maxWaitTime)
+        {
+            ResolveReferences(forceRefresh: true);
+
+            if (target != null && cameraTransform != null)
+            {
+                PlayIntro();
+                yield break;
+            }
+
+            timer += Time.unscaledDeltaTime;
+            yield return null;
+        }
+
+        PlayIntro();
     }
 
     private IEnumerator IntroRoutine()
@@ -129,14 +162,14 @@ public class SceneIntroCameraTransition : MonoBehaviour
         return restoreCameraWhenFinished || disableCameraControllers;
     }
 
-    private void ResolveReferences()
+    private void ResolveReferences(bool forceRefresh = false)
     {
-        if (cameraTransform == null && Camera.main != null)
+        if ((forceRefresh || cameraTransform == null) && Camera.main != null)
         {
             cameraTransform = Camera.main.transform;
         }
 
-        if (target == null)
+        if (forceRefresh || target == null)
         {
             CharacterInputSystem inputSystem = FindFirstObjectByType<CharacterInputSystem>();
             if (inputSystem != null)
@@ -153,17 +186,17 @@ public class SceneIntroCameraTransition : MonoBehaviour
             }
         }
 
-        if (characterInputSystem == null)
+        if (forceRefresh || characterInputSystem == null)
         {
             characterInputSystem = FindFirstObjectByType<CharacterInputSystem>();
         }
 
-        if (tpCameraController == null)
+        if (forceRefresh || tpCameraController == null)
         {
             tpCameraController = FindFirstObjectByType<TP_CameraController>();
         }
 
-        if (simpleCameraController == null)
+        if (forceRefresh || simpleCameraController == null)
         {
             simpleCameraController = FindFirstObjectByType<UnityTemplateProjects.SimpleCameraController>();
         }
